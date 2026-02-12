@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camel Platformer - Eat That Grass!</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div class="score">🌾 Grass Eaten: <span id="grassCount">0</span></div>
+            <div>Level: <span id="level">1</span></div>
+        </div>
+        <div id="player">🐫</div>
+        <div id="gameOver">
+            <h1 id="gameOverText">Game Over!</h1>
+            <p id="finalScore"></p>
+            <button onclick="location.reload()">Play Again</button>
+        </div>
+        <div class="instructions">
+            ← → Arrow Keys or A/D to Move | SPACE to Jump
+        </div>
+    </div>
+
+    <!-- Scripts: Components -->
+    <script src="../js/components/Player.js"></script>
+    <script src="../js/components/Platform.js"></script>
+    <script src="../js/components/Grass.js"></script>
+
+    <!-- Scripts: Utilities -->
+    <script src="../js/utilities/GameConfig.js"></script>
+    <script src="../js/utilities/InputHandler.js"></script>
+    <script src="../js/utilities/CollisionDetector.js"></script>
+    <script src="../js/utilities/LevelManager.js"></script>
+
+    <!-- Scripts: Main Game Logic -->
+    <script src="../js/GameManager.js"></script>
+</body>
+</html>

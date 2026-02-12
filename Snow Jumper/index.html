@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arctic Polar Bear Platformer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #2c3e50;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+        canvas {
+            background: linear-gradient(to bottom, #a1c4fd 0%, #c2e9fb 100%);
+            display: block;
+            border: 4px solid #fff;
+            border-radius: 8px;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+        }
+        .stat {
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 5px;
+        }
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            text-align: center;
+            display: none;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 15px;
+            z-index: 10;
+        }
+        #powerup-timer {
+            color: #f1c40f;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            <div class="stat">Level: <span id="level-display">1</span></div>
+            <div class="stat" id="powerup-info"></div>
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const levelDisplay = document.getElementById('level-display');
+        const messageDisplay = document.getElementById('message');
+        const powerupInfo = document.getElementById('powerup-info');
+
+        canvas.width = 1000;
+        canvas.height = 600;
+
+        const GRAVITY = 0.5;
+        const FRICTION = 0.8;
+
+        let currentLevel = 1;
+        let gameActive = true;
+
+        const keys = {};
+
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        class Player {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.width = 40;
+                this.height = 40;
+                this.x = 50;
+                this.y = canvas.height - 100;
+                this.velX = 0;
+                this.velY = 0;
+                this.speed = 4;
+                this.jumpForce = 12;
+                this.grounded = false;
+                this.color = '#fff';
+                this.powerupType = null;
+                this.powerupTimer = 0;
+            }
+
+            update() {
+                // Input handling
+                if (keys['ArrowLeft'] || keys['KeyA']) {
+                    if (this.velX > -this.speed) this.velX -= 0.8;
+                }
+                if (keys['ArrowRight'] || keys['KeyD']) {
+                    if (this.velX < this.speed) this.velX += 0.8;
+                }
+                if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && this.grounded) {
+                    this.velY = -this.jumpForce;
+                    this.grounded = false;
+                }
+
+                // Physics
+                this.velX *= FRICTION;
+                this.velY += GRAVITY;
+
+                this.x += this.velX;
+                this.y += this.velY;
+
+                // Screen boundaries
+                if (this.x < 0) {
+                    this.x = 0;
+                    this.velX = 0;
+                }
+                if (this.x + this.width > canvas.width) {
+                    this.x = canvas.width - this.width;
+                    this.velX = 0;
+                }
+
+                // Death check (falling off)
+                if (this.y > canvas.height) {
+                    this.die();
+                }
+
+                // Power-up logic
+                if (this.powerupTimer > 0) {
+                    this.powerupTimer--;
+                    if (this.powerupTimer === 0) {
+                        this.resetStats();
+                    }
+                }
+            }
+
+            resetStats() {
+                this.speed = 4;
+                this.jumpForce = 12;
+                this.powerupType = null;
+                powerupInfo.innerText = '';
+            }
+
+            applyPowerup(type) {
+                this.powerupType = type;
+                this.powerupTimer = 300; // ~5 seconds at 60fps
+                if (type === 'speed') {
+                    this.speed = 7;
+                    powerupInfo.innerText = 'Power: Super Speed!';
+                } else if (type === 'jump') {
+                    this.jumpForce = 17;
+                    powerupInfo.innerText = 'Power: Mega Jump!';
+                }
+            }
+
+            die() {
+                this.reset();
+                initLevel(currentLevel);
+            }
+
+            draw() {
+                // Draw Bear
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // Ears
+                ctx.fillRect(this.x, this.y - 5, 10, 10);
+                ctx.fillRect(this.x + this.width - 10, this.y - 5, 10, 10);
+
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x + 8, this.y + 10, 4, 4);
+                ctx.fillRect(this.x + this.width - 12, this.y + 10, 4, 4);
+                
+                // Nose
+                ctx.fillRect(this.x + (this.width/2) - 3, this.y + 20, 6, 4);
+
+                // Highlight if powered up
+                if (this.powerupType) {
+                    ctx.strokeStyle = this.powerupType === 'speed' ? '#e74c3c' : '#f1c40f';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(this.x - 2, this.y - 2, this.width + 4, this.height + 4);
+                }
+            }
+        }
+
+        class Platform {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+            }
+
+            draw() {
+                ctx.fillStyle = '#ecf0f1'; // Ice color
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // Ice texture detail
+                ctx.fillStyle = '#d6eaf8';
+                ctx.fillRect(this.x + 5, this.y + 5, this.width - 10, 5);
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.fillRect(this.x, this.y, this.width, 2);
+            }
+        }
+
+        class PowerUp {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.width = 30;
+                this.height = 30;
+                this.type = type; // 'speed' or 'jump'
+                this.collected = false;
+            }
+
+            draw() {
+                if (this.collected) return;
+                
+                const centerX = this.x + this.width / 2;
+                const centerY = this.y + this.height / 2;
+                const time = Date.now() / 500;
+                const floatOffset = Math.sin(time) * 5;
+
+                ctx.save();
+                ctx.translate(centerX, centerY + floatOffset);
+                
+                // Outer glow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.type === 'speed' ? 'rgba(231, 76, 60, 0.8)' : 'rgba(241, 196, 15, 0.8)';
+                
+                // Ice Crystal (Hexagon/Diamond shape)
+                ctx.fillStyle = this.type === 'speed' ? '#ff7675' : '#ffeaaa';
+                ctx.beginPath();
+                ctx.moveTo(0, -this.height/2);
+                ctx.lineTo(this.width/2, -this.height/4);
+                ctx.lineTo(this.width/2, this.height/4);
+                ctx.lineTo(0, this.height/2);
+                ctx.lineTo(-this.width/2, this.height/4);
+                ctx.lineTo(-this.width/2, -this.height/4);
+                ctx.closePath();
+                ctx.fill();
+
+                // Shine/Highlight
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.beginPath();
+                ctx.moveTo(-this.width/4, -this.height/3);
+                ctx.lineTo(0, -this.height/2);
+                ctx.lineTo(this.width/4, -this.height/3);
+                ctx.closePath();
+                ctx.fill();
+
+                // Inner core
+                ctx.fillStyle = this.type === 'speed' ? '#e74c3c' : '#f1c40f';
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        class Goal {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 60;
+                this.height = 60;
+            }
+
+            draw() {
+                // Draw Igloo
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(this.x + 30, this.y + 60, 40, Math.PI, 0);
+                ctx.fill();
+                
+                // Door
+                ctx.fillStyle = '#34495e';
+                ctx.fillRect(this.x + 20, this.y + 40, 20, 20);
+                
+                // Text above
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('FINISH', this.x + 30, this.y - 10);
+            }
+        }
+
+        const player = new Player();
+        let platforms = [];
+        let powerups = [];
+        let goal = null;
+
+        function initLevel(level) {
+            platforms = [];
+            powerups = [];
+            player.resetStats();
+            player.x = 50;
+            player.y = canvas.height - 100;
+            player.velX = 0;
+            player.velY = 0;
+            levelDisplay.innerText = level;
+
+            // Starting Platform
+            platforms.push(new Platform(0, canvas.height - 40, 150, 40));
+
+            if (level === 1) {
+                platforms.push(new Platform(250, 450, 200, 20));
+                platforms.push(new Platform(500, 350, 200, 20));
+                platforms.push(new Platform(750, 250, 200, 20));
+                goal = new Goal(850, 190);
+                powerups.push(new PowerUp(580, 310, 'speed'));
+            } else if (level === 2) {
+                platforms.push(new Platform(200, 500, 120, 20));
+                platforms.push(new Platform(400, 420, 120, 20));
+                platforms.push(new Platform(600, 340, 120, 20));
+                platforms.push(new Platform(800, 260, 120, 20));
+                goal = new Goal(830, 200);
+                powerups.push(new PowerUp(640, 300, 'jump'));
+            } else if (level === 3) {
+                platforms.push(new Platform(200, 500, 80, 20));
+                platforms.push(new Platform(350, 400, 80, 20));
+                platforms.push(new Platform(550, 400, 80, 20));
+                platforms.push(new Platform(750, 300, 80, 20));
+                platforms.push(new Platform(900, 200, 100, 20));
+                goal = new Goal(910, 140);
+                powerups.push(new PowerUp(580, 360, 'speed'));
+                powerups.push(new PowerUp(780, 260, 'jump'));
+            } else if (level === 4) {
+                // Arctic Storm - Hard
+                platforms.push(new Platform(180, 520, 60, 20));
+                platforms.push(new Platform(300, 450, 60, 20));
+                platforms.push(new Platform(450, 380, 60, 20));
+                platforms.push(new Platform(650, 380, 60, 20));
+                platforms.push(new Platform(850, 300, 60, 20));
+                platforms.push(new Platform(720, 180, 60, 20));
+                platforms.push(new Platform(480, 80, 100, 20));
+                goal = new Goal(500, 20);
+                powerups.push(new PowerUp(670, 340, 'speed'));
+            } else if (level === 5) {
+                // The Great Glacier - Extreme
+                platforms.push(new Platform(150, 500, 40, 20));
+                platforms.push(new Platform(300, 400, 40, 20));
+                platforms.push(new Platform(500, 350, 40, 20));
+                platforms.push(new Platform(700, 350, 40, 20));
+                platforms.push(new Platform(900, 300, 40, 20));
+                platforms.push(new Platform(800, 150, 40, 20));
+                platforms.push(new Platform(600, 100, 40, 20));
+                platforms.push(new Platform(400, 100, 40, 20));
+                platforms.push(new Platform(200, 100, 100, 20));
+                goal = new Goal(220, 40);
+                powerups.push(new PowerUp(505, 310, 'jump'));
+                powerups.push(new PowerUp(805, 110, 'speed'));
+            } else {
+                gameActive = false;
+                messageDisplay.innerHTML = "CONGRATULATIONS!<br>You reached the end of the Arctic!";
+                messageDisplay.style.display = "block";
+            }
+        }
+
+        function checkCollisions() {
+            player.grounded = false;
+
+            for (let p of platforms) {
+                if (player.x < p.x + p.width &&
+                    player.x + player.width > p.x &&
+                    player.y < p.y + p.height &&
+                    player.y + player.height > p.y) {
+                    
+                    // Collision from top
+                    if (player.velY > 0 && player.y + player.height - player.velY <= p.y) {
+                        player.y = p.y - player.height;
+                        player.velY = 0;
+                        player.grounded = true;
+                    }
+                    // Collision from bottom
+                    else if (player.velY < 0 && player.y - player.velY >= p.y + p.height) {
+                        player.y = p.y + p.height;
+                        player.velY = 0;
+                    }
+                    // Collision from sides
+                    else if (player.x + player.width - player.velX <= p.x) {
+                        player.x = p.x - player.width;
+                        player.velX = 0;
+                    }
+                    else if (player.x - player.velX >= p.x + p.width) {
+                        player.x = p.x + p.width;
+                        player.velX = 0;
+                    }
+                }
+            }
+
+            for (let pw of powerups) {
+                if (!pw.collected &&
+                    player.x < pw.x + pw.width &&
+                    player.x + player.width > pw.x &&
+                    player.y < pw.y + pw.height &&
+                    player.y + player.height > pw.y) {
+                    
+                    pw.collected = true;
+                    player.applyPowerup(pw.type);
+                }
+            }
+
+            if (goal &&
+                player.x < goal.x + goal.width &&
+                player.x + player.width > goal.x &&
+                player.y < goal.y + goal.height &&
+                player.y + player.height > goal.y) {
+                
+                nextLevel();
+            }
+        }
+
+        function nextLevel() {
+            gameActive = false;
+            messageDisplay.innerText = "LEVEL COMPLETE!";
+            messageDisplay.style.display = "block";
+            
+            setTimeout(() => {
+                currentLevel++;
+                messageDisplay.style.display = "none";
+                gameActive = true;
+                initLevel(currentLevel);
+            }, 1500);
+        }
+
+        function loop() {
+            if (gameActive) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Simple snow effect
+                ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+                for(let i=0; i<15; i++) {
+                    let s = (Date.now()/50 + i*70) % canvas.width;
+                    let h = (Date.now()/20 + i*130) % canvas.height;
+                    ctx.beginPath();
+                    ctx.arc(s, h, 2, 0, Math.PI*2);
+                    ctx.fill();
+                }
+
+                player.update();
+                checkCollisions();
+
+                for (let p of platforms) p.draw();
+                for (let pw of powerups) pw.draw();
+                if (goal) goal.draw();
+                player.draw();
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        initLevel(currentLevel);
+        loop();
+    </script>
+</body>
+</html>

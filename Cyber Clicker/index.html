@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyberfunk: Data Breach</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #010101; font-family: 'Orbitron', sans-serif; color: #0ff; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .stats { background: rgba(0, 20, 30, 0.7); border-left: 4px solid #f0f; padding: 20px; backdrop-filter: blur(5px); }
+        .score { font-size: 3em; text-shadow: 0 0 10px #0ff, 0 0 20px #0ff; }
+        .currency { color: #f0f; font-size: 1.2em; }
+        
+        .shop { pointer-events: auto; display: flex; flex-direction: column; gap: 10px; width: 300px; }
+        .upgrade { background: rgba(0, 0, 0, 0.8); border: 1px solid #0ff; color: #0ff; padding: 15px; cursor: pointer; transition: 0.2s; font-family: inherit; }
+        .upgrade:hover { background: #0ff; color: #000; box-shadow: 0 0 20px #0ff; }
+        .upgrade:disabled { opacity: 0.3; cursor: not-allowed; border-color: #444; color: #444; }
+        
+        #glitch-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 2px); z-index: 5; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="glitch-overlay"></div>
+<div id="ui">
+    <div class="header">
+        <div class="stats">
+            <div class="currency">NEURAL CREDITS</div>
+            <div id="score" class="score">0</div>
+            <div id="cps">0 CREDITS / SEC</div>
+        </div>
+    </div>
+
+    <div class="shop">
+        <button class="upgrade" onclick="buyUpgrade('click')">
+            UPGRADE UPLINK<br>
+            <small id="click-cost">Cost: 10</small> (+1 per click)
+        </button>
+        <button class="upgrade" onclick="buyUpgrade('auto')">
+            DEPLOY BOTNET<br>
+            <small id="auto-cost">Cost: 50</small> (+5 per sec)
+        </button>
+        <button class="upgrade" onclick="buyUpgrade('overclock')">
+            SYSTEM OVERCLOCK<br>
+            <small id="over-cost">Cost: 500</small> (2x Multiplier)
+        </button>
+    </div>
+</div>
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+/** GAME LOGIC **/
+let credits = 0;
+let clickPower = 1;
+let autoCps = 0;
+let multiplier = 1;
+let costs = { click: 10, auto: 50, overclock: 500 };
+
+window.buyUpgrade = (type) => {
+    if (credits >= costs[type]) {
+        credits -= costs[type];
+        if (type === 'click') {
+            clickPower += 1;
+            costs.click = Math.floor(costs.click * 1.5);
+        } else if (type === 'auto') {
+            autoCps += 5;
+            costs.auto = Math.floor(costs.auto * 1.6);
+        } else if (type === 'overclock') {
+            multiplier *= 2;
+            costs.overclock = Math.floor(costs.overclock * 5);
+        }
+        updateUI();
+        triggerGlitch();
+    }
+};
+
+function updateUI() {
+    document.getElementById('score').innerText = Math.floor(credits).toLocaleString();
+    document.getElementById('cps').innerText = `${(autoCps * multiplier).toFixed(1)} CREDITS / SEC`;
+    document.getElementById('click-cost').innerText = `Cost: ${costs.click}`;
+    document.getElementById('auto-cost').innerText = `Cost: ${costs.auto}`;
+    document.getElementById('over-cost').innerText = `Cost: ${costs.overclock}`;
+}
+
+/** THREE.JS ENGINE **/
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias false for post-processing
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// Post Processing for Hyper-Realism
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+composer.addPass(bloomPass);
+
+/** PROCEDURAL CYBERPUNK CITY BACKGROUND **/
+const cityGroup = new THREE.Group();
+const buildingGeom = new THREE.BoxGeometry(1, 1, 1);
+
+for (let i = 0; i < 200; i++) {
+    const h = Math.random() * 20 + 5;
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0x050505,
+        emissive: new THREE.Color().setHSL(Math.random() * 0.2 + 0.5, 0.8, 0.2), // Blues/Purples
+        emissiveIntensity: 2
+    });
+    const building = new THREE.Mesh(buildingGeom, material);
+    building.scale.set(2, h, 2);
+    building.position.set(
+        (Math.random() - 0.5) * 100,
+        h / 2 - 15,
+        (Math.random() - 0.5) * 100 - 30
+    );
+    cityGroup.add(building);
+}
+scene.add(cityGroup);
+
+/** THE CENTRAL DATA BLOCK (SPRITE) **/
+const blockGroup = new THREE.Group();
+const blockGeom = new THREE.BoxGeometry(4, 4, 4);
+const blockMat = new THREE.MeshStandardMaterial({ 
+    color: 0x00ffff, 
+    emissive: 0x00ffff, 
+    emissiveIntensity: 5,
+    transparent: true,
+    opacity: 0.8
+});
+const centralBlock = new THREE.Mesh(blockGeom, blockMat);
+blockGroup.add(centralBlock);
+
+// Inner "Core"
+const core = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 2, 2),
+    new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0xff00ff, emissiveIntensity: 10 })
+);
+blockGroup.add(core);
+scene.add(blockGroup);
+
+// Lights
+const ambient = new THREE.AmbientLight(0x404040);
+scene.add(ambient);
+const pointLight = new THREE.PointLight(0x00ffff, 100, 50);
+pointLight.position.set(0, 5, 5);
+scene.add(pointLight);
+
+camera.position.z = 15;
+
+/** INTERACTION **/
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener('mousedown', (e) => {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([centralBlock]);
+    
+    if (intersects.length > 0) {
+        credits += (clickPower * multiplier);
+        updateUI();
+        
+        // Visual Feedback
+        centralBlock.scale.set(1.2, 1.2, 1.2);
+        centralBlock.material.emissiveIntensity = 15;
+        setTimeout(() => {
+            centralBlock.scale.set(1, 1, 1);
+            centralBlock.material.emissiveIntensity = 5;
+        }, 100);
+    }
+});
+
+function triggerGlitch() {
+    bloomPass.strength = 10;
+    setTimeout(() => bloomPass.strength = 1.5, 100);
+}
+
+/** ANIMATION LOOP **/
+function animate() {
+    requestAnimationFrame(animate);
+    
+    const time = performance.now() * 0.001;
+    
+    // Rotate Block
+    blockGroup.rotation.y += 0.01;
+    blockGroup.rotation.x += 0.005;
+    blockGroup.position.y = Math.sin(time) * 0.5;
+    
+    // Core Pulse
+    core.scale.setScalar(1 + Math.sin(time * 5) * 0.1);
+    
+    // City Drift
+    cityGroup.position.z += 0.02;
+    if (cityGroup.position.z > 20) cityGroup.position.z = 0;
+
+    // Auto Clicker
+    credits += (autoCps * multiplier) / 60;
+    updateUI();
+
+    composer.render();
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+</script>
+</body>
+</html>

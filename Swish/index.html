@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyper-Real Basketball Sim</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="ui">
+    <div class="stat">LEVEL: <span id="level-val">1</span></div>
+    <div class="stat">SCORE: <span id="score-val">0</span> / <span id="target-val">3</span></div>
+</div>
+
+<div id="power-bar-container"><div id="power-bar"></div></div>
+<div id="msg">SWISH!</div>
+<div id="instructions">CLICK & DRAG DOWN TO AIM | RELEASE TO SHOOT</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+            "cannon": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
+        }
+    }
+</script>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

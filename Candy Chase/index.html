@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitten Candy Chase!</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            overflow: hidden; 
+            background: linear-gradient(180deg, #ffe4f3 0%, #fff0f5 50%, #e8f5e9 100%);
+            font-family: 'Comic Sans MS', 'Chalkboard', cursive;
+        }
+        #ui {
+            position: absolute; top: 20px; left: 20px; z-index: 100;
+            background: rgba(255,255,255,0.9); padding: 15px 25px;
+            border-radius: 20px; border: 3px solid #ff9ed2;
+            box-shadow: 0 5px 20px rgba(255,150,200,0.3);
+        }
+        #ui span { font-size: 24px; color: #e75480; }
+        #title {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            font-size: 32px; color: #ff69b4; text-shadow: 2px 2px 0 #fff;
+            z-index: 100;
+        }
+        #message {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 48px; color: #ff69b4; opacity: 0; z-index: 200;
+            text-shadow: 3px 3px 0 #fff; pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        #hearts {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1;
+        }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <div id="title">🐱 Kitten Candy Chase! 🍭</div>
+    <div id="ui">
+        🍬 Candies: <span id="score">0</span><br>
+        ⭐ Level: <span id="level">1</span><br>
+        ❤️ Lives: <span id="lives">3</span>
+    </div>
+    <div id="game-over" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 40px; border-radius: 30px; border: 5px solid #ff69b4; text-align: center; z-index: 1000;">
+        <h1 style="color: #ff69b4; font-size: 48px; margin-bottom: 20px;">Game Over!</h1>
+        <p style="font-size: 24px;">You collected <span id="final-score">0</span> candies!</p>
+        <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 30px; font-size: 20px; background: #ff69b4; color: white; border: none; border-radius: 15px; cursor: pointer; font-family: inherit;">Play Again</button>
+    </div>
+    <div id="message"></div>
+    <canvas id="hearts"></canvas>
+    <canvas id="game"></canvas>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const heartsCanvas = document.getElementById('hearts');
+        const heartsCtx = heartsCanvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        heartsCanvas.width = window.innerWidth;
+        heartsCanvas.height = window.innerHeight;
+        heartsCanvas.style.position = 'fixed';
+        heartsCanvas.style.top = '0';
+        heartsCanvas.style.left = '0';
+        
+        let score = 0;
+        let level = 1;
+        let lives = 3;
+        let gameOver = false;
+        let speedBoost = 0;
+        const keys = {};
+        
+        // Cute messages
+        const messages = ['Yummy! 🍬', 'Sweet! 🍭', 'Meow! 😻', 'Purrfect! 💖', 'Delicious! ✨', 'So cute! 🌸', 'RAINBOW! 🌈'];
+        
+        // Floating hearts
+        const floatingHearts = [];
+        for (let i = 0; i < 15; i++) {
+            floatingHearts.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: 10 + Math.random() * 20,
+                speed: 0.3 + Math.random() * 0.5,
+                wobble: Math.random() * Math.PI * 2
+            });
+        }
+        
+        // Player kitten
+        const kitten = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            size: 50,
+            speed: 7,
+            direction: 1,
+            bobble: 0,
+            tailWag: 0
+        };
+        
+        // Candies array
+        const candies = [];
+        const enemies = [];
+        const candyTypes = ['lollipop', 'candy', 'cupcake', 'donut', 'icecream', 'rainbow'];
+        const candyColors = ['#ff69b4', '#87ceeb', '#98fb98', '#dda0dd', '#f0e68c', '#ffb6c1', '#ffa07a'];
+        
+        function spawnCandy() {
+            // Stop candy from increasing too much
+            if (candies.length >= 12) return;
+            
+            const type = Math.random() < 0.1 ? 'rainbow' : candyTypes[Math.floor(Math.random() * (candyTypes.length - 1))];
+            candies.push({
+                x: Math.random() * (canvas.width - 100) + 50,
+                y: Math.random() * (canvas.height - 100) + 50,
+                size: type === 'rainbow' ? 40 : 30 + Math.random() * 20,
+                type: type,
+                color: candyColors[Math.floor(Math.random() * candyColors.length)],
+                bobble: Math.random() * Math.PI * 2,
+                rotation: Math.random() * Math.PI * 2
+            });
+        }
+
+        function spawnEnemy() {
+            if (enemies.length >= level + 1) return;
+            enemies.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: 40,
+                vx: (Math.random() - 0.5) * (3 + level),
+                vy: (Math.random() - 0.5) * (3 + level),
+                bobble: Math.random() * Math.PI * 2
+            });
+        }
+        
+        // Spawn initial candies
+        for (let i = 0; i < 8; i++) spawnCandy();
+        for (let i = 0; i < 2; i++) spawnEnemy();
+        
+        // Sparkles for collection effect
+        const sparkles = [];
+        
+        function createSparkles(x, y, color) {
+            for (let i = 0; i < 12; i++) {
+                sparkles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    size: 3 + Math.random() * 5,
+                    color: color,
+                    life: 1
+                });
+            }
+        }
+        
+        function showMessage(text) {
+            const msg = document.getElementById('message');
+            msg.innerText = text;
+            msg.style.opacity = '1';
+            setTimeout(() => msg.style.opacity = '0', 800);
+        }
+        
+        function drawHeart(ctx, x, y, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(0, size * 0.3);
+            ctx.bezierCurveTo(-size * 0.5, -size * 0.3, -size, size * 0.3, 0, size);
+            ctx.bezierCurveTo(size, size * 0.3, size * 0.5, -size * 0.3, 0, size * 0.3);
+            ctx.fill();
+            ctx.restore();
+        }
+        
+        function drawKitten(x, y, size, direction) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(direction, 1);
+            
+            const bounce = Math.sin(kitten.bobble) * 3;
+            
+            // Body
+            ctx.fillStyle = '#ffa07a';
+            ctx.beginPath();
+            ctx.ellipse(0, bounce, size * 0.6, size * 0.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Tail
+            ctx.strokeStyle = '#ffa07a';
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.5, bounce);
+            const tailWave = Math.sin(kitten.tailWag) * 15;
+            ctx.quadraticCurveTo(-size * 0.8, bounce - 20 + tailWave, -size * 0.7, bounce - 40 + tailWave);
+            ctx.stroke();
+            
+            // Head
+            ctx.fillStyle = '#ffa07a';
+            ctx.beginPath();
+            ctx.arc(size * 0.3, bounce - size * 0.2, size * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Ears
+            ctx.beginPath();
+            ctx.moveTo(size * 0.1, bounce - size * 0.45);
+            ctx.lineTo(size * 0.05, bounce - size * 0.7);
+            ctx.lineTo(size * 0.25, bounce - size * 0.5);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(size * 0.5, bounce - size * 0.45);
+            ctx.lineTo(size * 0.55, bounce - size * 0.7);
+            ctx.lineTo(size * 0.35, bounce - size * 0.5);
+            ctx.fill();
+            
+            // Inner ears
+            ctx.fillStyle = '#ffb6c1';
+            ctx.beginPath();
+            ctx.moveTo(size * 0.12, bounce - size * 0.48);
+            ctx.lineTo(size * 0.1, bounce - size * 0.62);
+            ctx.lineTo(size * 0.22, bounce - size * 0.5);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(size * 0.48, bounce - size * 0.48);
+            ctx.lineTo(size * 0.5, bounce - size * 0.62);
+            ctx.lineTo(size * 0.38, bounce - size * 0.5);
+            ctx.fill();
+            
+            // Eyes
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(size * 0.2, bounce - size * 0.25, 6, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(size * 0.4, bounce - size * 0.25, 6, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Eye shine
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(size * 0.22, bounce - size * 0.28, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(size * 0.42, bounce - size * 0.28, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Nose
+            ctx.fillStyle = '#ff69b4';
+            ctx.beginPath();
+            ctx.moveTo(size * 0.3, bounce - size * 0.12);
+            ctx.lineTo(size * 0.25, bounce - size * 0.05);
+            ctx.lineTo(size * 0.35, bounce - size * 0.05);
+            ctx.fill();
+            
+            // Mouth
+            ctx.strokeStyle = '#ff69b4';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(size * 0.25, bounce - size * 0.02, 5, 0, Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(size * 0.35, bounce - size * 0.02, 5, 0, Math.PI);
+            ctx.stroke();
+            
+            // Whiskers
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(size * 0.1, bounce - size * 0.1 + i * 5);
+                ctx.lineTo(-size * 0.1, bounce - size * 0.15 + i * 8);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(size * 0.5, bounce - size * 0.1 + i * 5);
+                ctx.lineTo(size * 0.7, bounce - size * 0.15 + i * 8);
+                ctx.stroke();
+            }
+            
+            // Paws
+            ctx.fillStyle = '#ffa07a';
+            ctx.beginPath();
+            ctx.ellipse(-size * 0.3, bounce + size * 0.35, 10, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(size * 0.3, bounce + size * 0.35, 10, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function drawLollipop(x, y, size, color, rotation) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            
+            // Stick
+            ctx.fillStyle = '#deb887';
+            ctx.fillRect(-3, 0, 6, size * 1.2);
+            
+            // Swirl candy
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.3, size * 0.5, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            
+            // Spiral
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i < 3; i++) {
+                const r = size * 0.15 + i * size * 0.12;
+                ctx.arc(0, -size * 0.3, r, 0, Math.PI * 2);
+            }
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        function drawCandy(x, y, size, color, rotation) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            
+            // Wrapper ends
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.8, 0);
+            ctx.lineTo(-size * 0.5, -size * 0.3);
+            ctx.lineTo(-size * 0.5, size * 0.3);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(size * 0.8, 0);
+            ctx.lineTo(size * 0.5, -size * 0.3);
+            ctx.lineTo(size * 0.5, size * 0.3);
+            ctx.fill();
+            
+            // Main candy
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.5, size * 0.35, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Shine
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(-size * 0.15, -size * 0.1, size * 0.15, size * 0.08, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function drawCupcake(x, y, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Cup
+            ctx.fillStyle = '#deb887';
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.4, 0);
+            ctx.lineTo(-size * 0.3, size * 0.5);
+            ctx.lineTo(size * 0.3, size * 0.5);
+            ctx.lineTo(size * 0.4, 0);
+            ctx.fill();
+            
+            // Frosting
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.1, size * 0.45, Math.PI, 0);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(-size * 0.2, -size * 0.25, size * 0.25, Math.PI, 0);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(size * 0.2, -size * 0.25, size * 0.25, Math.PI, 0);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.4, size * 0.2, Math.PI, 0);
+            ctx.fill();
+            
+            // Cherry
+            ctx.fillStyle = '#ff0044';
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.55, size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function drawDonut(x, y, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Donut body
+            ctx.fillStyle = '#deb887';
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Frosting
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.05, size * 0.45, Math.PI * 1.2, Math.PI * 1.8);
+            ctx.arc(0, -size * 0.05, size * 0.45, Math.PI * 0.2, Math.PI * 0.8);
+            ctx.fill();
+            
+            // Hole
+            ctx.fillStyle = '#ffe4f3';
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Sprinkles
+            const sprinkleColors = ['#ff69b4', '#87ceeb', '#98fb98', '#fff'];
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const r = size * 0.32;
+                ctx.fillStyle = sprinkleColors[i % sprinkleColors.length];
+                ctx.save();
+                ctx.translate(Math.cos(angle) * r, Math.sin(angle) * r);
+                ctx.rotate(angle);
+                ctx.fillRect(-2, -5, 4, 10);
+                ctx.restore();
+            }
+            
+            ctx.restore();
+        }
+        
+        function drawIcecream(x, y, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Cone
+            ctx.fillStyle = '#deb887';
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.3, 0);
+            ctx.lineTo(0, size * 0.8);
+            ctx.lineTo(size * 0.3, 0);
+            ctx.fill();
+            
+            // Cone pattern
+            ctx.strokeStyle = '#c4a574';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-size * 0.25 + i * 0.05 * size, size * 0.1);
+                ctx.lineTo(size * 0.05, size * 0.6);
+                ctx.stroke();
+            }
+            
+            // Ice cream scoops
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.15, size * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff0f5';
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.45, size * 0.28, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Cherry
+            ctx.fillStyle = '#ff0044';
+            ctx.beginPath();
+            ctx.arc(0, -size * 0.7, size * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function drawRainbow(x, y, size, rotation) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            
+            const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#8b00ff'];
+            const stripeHeight = size / colors.length;
+            
+            // Draw a striped rectangle
+            for (let i = 0; i < colors.length; i++) {
+                ctx.fillStyle = colors[i];
+                ctx.fillRect(-size * 0.5, -size * 0.5 + i * stripeHeight, size, stripeHeight);
+            }
+            
+            // White wrapper ends
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.8, 0);
+            ctx.lineTo(-size * 0.5, -size * 0.4);
+            ctx.lineTo(-size * 0.5, size * 0.4);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(size * 0.8, 0);
+            ctx.lineTo(size * 0.5, -size * 0.4);
+            ctx.lineTo(size * 0.5, size * 0.4);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function drawEnemy(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            const bounce = Math.sin(Date.now() * 0.01) * 5;
+            
+            // Body (Sour Bat/Shadow)
+            ctx.fillStyle = '#4a4a4a';
+            ctx.beginPath();
+            ctx.ellipse(0, bounce, size * 0.6, size * 0.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Wings
+            ctx.beginPath();
+            const wingSpread = Math.sin(Date.now() * 0.02) * 20;
+            ctx.moveTo(-size * 0.4, bounce);
+            ctx.lineTo(-size * 1.2, bounce - 20 + wingSpread);
+            ctx.lineTo(-size * 0.4, bounce + 10);
+            ctx.fill();
+            ctx.moveTo(size * 0.4, bounce);
+            ctx.lineTo(size * 1.2, bounce - 20 + wingSpread);
+            ctx.lineTo(size * 0.4, bounce + 10);
+            ctx.fill();
+            
+            // Eyes
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath();
+            ctx.arc(-size * 0.2, bounce - 5, 4, 0, Math.PI * 2);
+            ctx.arc(size * 0.2, bounce - 5, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function update() {
+            if (gameOver) return;
+
+            // Move kitten
+            let moving = false;
+            let currentSpeed = kitten.speed + speedBoost;
+            if (speedBoost > 0) speedBoost -= 0.02;
+
+            if (keys['ArrowUp'] || keys['w'] || keys['W']) { kitten.y -= currentSpeed; moving = true; }
+            if (keys['ArrowDown'] || keys['s'] || keys['S']) { kitten.y += currentSpeed; moving = true; }
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) { kitten.x -= currentSpeed; kitten.direction = -1; moving = true; }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) { kitten.x += currentSpeed; kitten.direction = 1; moving = true; }
+            
+            // Bounds
+            kitten.x = Math.max(50, Math.min(canvas.width - 50, kitten.x));
+            kitten.y = Math.max(50, Math.min(canvas.height - 50, kitten.y));
+            
+            // Animation
+            if (moving) {
+                kitten.bobble += 0.3;
+                kitten.tailWag += 0.4;
+            } else {
+                kitten.tailWag += 0.1;
+            }
+            
+            // Update candies
+            candies.forEach(c => c.bobble += 0.05);
+
+            // Update enemies
+            enemies.forEach(e => {
+                // Move towards kitten slightly at higher levels
+                if (level > 2) {
+                    const dx = kitten.x - e.x;
+                    const dy = kitten.y - e.y;
+                    const angle = Math.atan2(dy, dx);
+                    e.vx += Math.cos(angle) * 0.05 * (level - 2);
+                    e.vy += Math.sin(angle) * 0.05 * (level - 2);
+                    
+                    // Cap speed
+                    const speed = Math.sqrt(e.vx * e.vx + e.vy * e.vy);
+                    const maxSpeed = 3 + level;
+                    if (speed > maxSpeed) {
+                        e.vx = (e.vx / speed) * maxSpeed;
+                        e.vy = (e.vy / speed) * maxSpeed;
+                    }
+                }
+
+                e.x += e.vx;
+                e.y += e.vy;
+                if (e.x < 0 || e.x > canvas.width) e.vx *= -1;
+                if (e.y < 0 || e.y > canvas.height) e.vy *= -1;
+            });
+            
+            // Check collection
+            for (let i = candies.length - 1; i >= 0; i--) {
+                const c = candies[i];
+                const dx = kitten.x - c.x;
+                const dy = kitten.y - c.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < kitten.size * 0.6 + c.size * 0.5) {
+                    createSparkles(c.x, c.y, c.type === 'rainbow' ? '#fff' : c.color);
+                    
+                    if (c.type === 'rainbow') {
+                        speedBoost = 5;
+                        score += 5;
+                        showMessage("💨 SUPER SPEED!");
+                    } else {
+                        score++;
+                        showMessage(messages[Math.floor(Math.random() * messages.length)]);
+                    }
+                    
+                    candies.splice(i, 1);
+                    document.getElementById('score').innerText = score;
+                    
+                    // Level up
+                    if (score > 0 && score % 15 === 0 && level < Math.floor(score/15) + 1) {
+                        level++;
+                        document.getElementById('level').innerText = level;
+                        kitten.speed += 0.5;
+                        spawnEnemy();
+                        showMessage("⭐ LEVEL UP! harder now! ⭐");
+                    }
+                    
+                    // Spawn new candies
+                    spawnCandy();
+                }
+            }
+
+            // Check enemy collision
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                const dx = kitten.x - e.x;
+                const dy = kitten.y - e.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < kitten.size * 0.5 + e.size * 0.4) {
+                    lives--;
+                    document.getElementById('lives').innerText = lives;
+                    createSparkles(kitten.x, kitten.y, '#555');
+                    enemies.splice(i, 1);
+                    spawnEnemy();
+                    showMessage("🙀 OUCH!");
+                    
+                    if (lives <= 0) {
+                        gameOver = true;
+                        document.getElementById('final-score').innerText = score;
+                        document.getElementById('game-over').style.display = 'block';
+                    }
+                }
+            }
+            
+            // Update sparkles
+            for (let i = sparkles.length - 1; i >= 0; i--) {
+                const s = sparkles[i];
+                s.x += s.vx;
+                s.y += s.vy;
+                s.vy += 0.2;
+                s.life -= 0.03;
+                if (s.life <= 0) sparkles.splice(i, 1);
+            }
+            
+            // Update floating hearts
+            floatingHearts.forEach(h => {
+                h.y -= h.speed;
+                h.wobble += 0.02;
+                h.x += Math.sin(h.wobble) * 0.5;
+                if (h.y < -50) {
+                    h.y = canvas.height + 50;
+                    h.x = Math.random() * canvas.width;
+                }
+            });
+        }
+        
+        function draw() {
+            // Clear
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            heartsCtx.clearRect(0, 0, heartsCanvas.width, heartsCanvas.height);
+            
+            // Draw floating hearts (background)
+            floatingHearts.forEach(h => {
+                drawHeart(heartsCtx, h.x, h.y, h.size, 'rgba(255,182,193,0.3)');
+            });
+            
+            // Draw grass/flowers at bottom
+            ctx.fillStyle = '#90ee90';
+            for (let x = 0; x < canvas.width; x += 30) {
+                const h = 20 + Math.sin(x * 0.1) * 10;
+                ctx.beginPath();
+                ctx.moveTo(x, canvas.height);
+                ctx.quadraticCurveTo(x + 15, canvas.height - h, x + 30, canvas.height);
+                ctx.fill();
+            }
+            
+            // Draw candies
+            candies.forEach(c => {
+                const bob = Math.sin(c.bobble) * 5;
+                const drawY = c.y + bob;
+                
+                switch(c.type) {
+                    case 'lollipop':
+                        drawLollipop(c.x, drawY, c.size, c.color, Math.sin(c.bobble * 0.5) * 0.1);
+                        break;
+                    case 'candy':
+                        drawCandy(c.x, drawY, c.size, c.color, c.rotation);
+                        break;
+                    case 'cupcake':
+                        drawCupcake(c.x, drawY, c.size, c.color);
+                        break;
+                    case 'donut':
+                        drawDonut(c.x, drawY, c.size, c.color);
+                        break;
+                    case 'icecream':
+                        drawIcecream(c.x, drawY, c.size, c.color);
+                        break;
+                    case 'rainbow':
+                        drawRainbow(c.x, drawY, c.size, Math.sin(c.bobble * 0.5) * 0.2);
+                        break;
+                }
+            });
+
+            // Draw enemies
+            enemies.forEach(e => drawEnemy(e.x, e.y, e.size));
+            
+            // Draw sparkles
+            sparkles.forEach(s => {
+                ctx.globalAlpha = s.life;
+                ctx.fillStyle = s.color;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Star shape
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+            
+            // Draw kitten
+            drawKitten(kitten.x, kitten.y, kitten.size, kitten.direction);
+        }
+        
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Event listeners
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            heartsCanvas.width = window.innerWidth;
+            heartsCanvas.height = window.innerHeight;
+        });
+        
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>

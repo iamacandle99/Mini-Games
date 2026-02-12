@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shhhhh!</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="ui">
+        <div id="keys-count">Keys: 0/3</div>
+        <div id="instructions">Find 3 keys and return to the start to escape. <br> Hide in lockers (E) when he's near. <br> Watch for the long shadow.</div>
+        <div id="interaction-prompt">Press E to Interact</div>
+    </div>
+    <div id="hiding-overlay" class="hidden">HIDING... Press ESC to exit</div>
+    <div id="jumpscare" class="hidden">
+        <img id="jumpscare-img" src="https://images.unsplash.com/photo-1509248961158-e54f6934749c?q=80&w=1000&auto=format&fit=crop" alt="Scary face">
+        <div id="game-over-text">CAUGHT</div>
+    </div>
+    <div id="win-screen" class="hidden">
+        <div id="win-text">YOU ESCAPED</div>
+        <button onclick="location.reload()">Play Again</button>
+    </div>
+    <div id="loading">
+        <div>
+            <h1>SHHHHH!</h1>
+            <p>A creepy 3D horror game</p>
+            <button id="start-button">START GAME</button>
+        </div>
+    </div>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="game.js"></script>
+</body>
+</html>

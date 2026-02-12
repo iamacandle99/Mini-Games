@@ -1,0 +1,41 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #050510;
+    color: #fff;
+    font-family: sans-serif;
+    overflow: hidden;
+}
+
+canvas {
+    display: block;
+}
+
+#ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #1a1a40;
+}
+
+.stat {
+    margin: 5px 0;
+    font-weight: bold;
+    color: #0af;
+}
+
+#message {
+    position: absolute;
+    bottom: 40px;
+    width: 100%;
+    text-align: center;
+    font-size: 20px;
+    color: #fff;
+    text-shadow: 0 0 10px #0af;
+    opacity: 0;
+    transition: opacity 0.5s;
+}
